@@ -26,7 +26,7 @@ public class GoalTrigger : MonoBehaviour
         //接触したオブジェクトがプレイヤーかどうかを判定
         PlayerMovement player = other.GetComponent<PlayerMovement>();
 
-        if(player == null)
+        if(player == null || !player.enabled)
         {
             return;
         }
