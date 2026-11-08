@@ -144,10 +144,22 @@ public class EnemyPatrol : MonoBehaviour
         if (target == null)
         {
             Debug.LogWarning("巡回地点の参照がありません");
+            agent.ResetPath();
+            agent.velocity = Vector3.zero;
             enabled = false;
             return;
         }
 
-        agent.SetDestination(target.position);
+
+        //安全な経路設定を試みる
+        bool success = SafeNavMeshMove.TryMove(agent, target.position);
+
+        if (!success)
+        {
+            Debug.LogWarning("到達できない巡回地点：" + target.name);
+
+            //巡回を停止
+            enabled = false;
+        }
     }
 }
