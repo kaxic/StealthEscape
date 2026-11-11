@@ -2,36 +2,56 @@ using UnityEngine;
 
 public class EnemyVision : MonoBehaviour
 {
+    [Header("References")]
     //プレイヤーへの参照
     [SerializeField] private PlayerMovement playerMovement;
-
-    //発見できる最大距離
-    [SerializeField] private float viewDistance = 6f;
-
-    //視野角（左右合わせた角度）
-    [SerializeField] private float viewAngle = 90f;
-
-    //視界を遮る障害物のレイヤーマスク
-    [SerializeField] private LayerMask obstacleMask;
-
     //発見時に表示する警告UI
     [SerializeField] private GameObject detectionWarning;
 
-    //
+
+    [Header("Vision")]
+    //発見できる最大距離
+    [SerializeField] private float viewDistance = 6f;
+    //視野角（左右合わせた角度）
+    [SerializeField] private float viewAngle = 90f;
+    //視界を遮る障害物のレイヤーマスク
+    [SerializeField] private LayerMask obstacleMask;
+    //プレイヤーの頭の最上部から少し下を見る
+    [SerializeField, Range(0f, 0.4f)] private float targetTopInset = 0.15f; 
+    
+
+    //他のスクリプトが読み取る用
     public bool IsDetecting { get; private set; }
 
-    //前のフレームで発見していたか
+
+    private CharacterController playerController;
     private bool wasDetected = false;
+
 
     private void Start()
     {
         IsDetecting = false;
         SetWarningVisible(false);
+
+        //Playerの参照を確認
+        if (playerMovement == null)
+        {
+            Debug.LogError("EnemyVisionにPlayerが設定されていません。");
+            enabled = false;
+            return;
+        }
+
+        playerController = playerMovement.GetComponent<CharacterController>();
+        if (playerController == null)
+        {
+            Debug.LogError("PlayerにCharacterControllerがありません。");
+            enabled = false;
+        }
     }
 
     void Update()
     {
-        if (playerMovement == null || !playerMovement.enabled) 
+        if (playerMovement == null || playerController == null || !playerMovement.enabled) 
         {
             IsDetecting = false;
             wasDetected = false;
@@ -72,14 +92,20 @@ public class EnemyVision : MonoBehaviour
 
     private bool IsPlayerInSight()
     {
-        //敵とプレイヤーの位置
+        //敵の位置
         Vector3 enemyPosition = transform.position;
-        Vector3 playerPosition = playerMovement.transform.position;
+
+        //プレイヤーの実際の高さ
+        Bounds playerBounds = playerController.bounds;
+
+
+        //プレイヤーの上端より少し下を視線の目標にする
+        Vector3 playerTarget = playerBounds.center;
+        playerTarget.y = playerBounds.max.y - targetTopInset;
+
 
         //敵からプレイヤーへの方向
-        Vector3 toPlayer = playerPosition - enemyPosition;
-
-        //高さの違いを無視
+        Vector3 toPlayer = playerTarget - enemyPosition;
         toPlayer.y = 0f;
 
         //1.距離の判定
@@ -105,8 +131,7 @@ public class EnemyVision : MonoBehaviour
         }
 
         //3.壁による遮蔽判定
-        Vector3 rayDirection = playerPosition - enemyPosition;
-
+        Vector3 rayDirection = playerTarget - enemyPosition;
         float rayDistance = rayDirection.magnitude;
 
         //敵とプレイヤーの間に壁があるか
