@@ -19,6 +19,7 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private EnemyVision enemyVision;
     [SerializeField] private EnemyHearing enemyHearing;
+    [SerializeField] private EnemyAwareness enemyAwareness;
 
 
     [Header("Movement")]
@@ -50,6 +51,8 @@ public class EnemyAI : MonoBehaviour
 
     private EnemyState currentState = EnemyState.Patrol;
     public string CurrentStateName => currentState.ToString();
+
+    public bool IsChasing => currentState == EnemyState.Chase;
 
 
     private int waypointIndex = 0;
@@ -101,9 +104,9 @@ public class EnemyAI : MonoBehaviour
             enemyVision = GetComponent<EnemyVision>();
         }
 
-        if (playerMovement != null) 
+        if (enemyAwareness == null)
         {
-            //playerController = playerMovement.GetComponent<CharacterController>();
+            enemyAwareness = GetComponent<EnemyAwareness>();
         }
     }
 
@@ -133,7 +136,7 @@ public class EnemyAI : MonoBehaviour
 
     private void Start()
     {
-        if (playerMovement == null || false || enemyVision == null || waypoints == null || waypoints.Length == 0) 
+        if (playerMovement == null || false || enemyVision == null || enemyAwareness == null || waypoints == null || waypoints.Length == 0) 
         {
             Debug.LogError("EnemyAIの参照が不足しています");
             enabled = false;
@@ -183,8 +186,13 @@ public class EnemyAI : MonoBehaviour
         }
 
 
-        //プレイヤーを発見した場合
-        if (enemyVision.IsDetecting)
+        //プレイヤーが視界内にいるか
+        bool canSeePlayer = enemyVision.isActiveAndEnabled && enemyVision.IsDetecting;
+
+        //警戒度が最大か
+        bool fullyDetected = enemyAwareness.isActiveAndEnabled && enemyAwareness.IsAtMaximum;
+
+        if (canSeePlayer && (currentState == EnemyState.Chase || fullyDetected))
         {
             //最後に見た位置を更新
             lastKnownPosition = GetPlayerFootPosition();
@@ -207,6 +215,7 @@ public class EnemyAI : MonoBehaviour
         {
             //見失ってる時間を加算
             lostSightTimer += Time.deltaTime;
+
             if(lostSightTimer < loseSightDelay)
             {
                 UpdateChase();

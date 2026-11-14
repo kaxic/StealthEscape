@@ -5,8 +5,6 @@ public class EnemyVision : MonoBehaviour
     [Header("References")]
     //プレイヤーへの参照
     [SerializeField] private PlayerMovement playerMovement;
-    //発見時に表示する警告UI
-    [SerializeField] private GameObject detectionWarning;
 
 
     [Header("Vision")]
@@ -31,7 +29,6 @@ public class EnemyVision : MonoBehaviour
     private void Start()
     {
         IsDetecting = false;
-        SetWarningVisible(false);
 
         //Playerの参照を確認
         if (playerMovement == null)
@@ -55,7 +52,6 @@ public class EnemyVision : MonoBehaviour
         {
             IsDetecting = false;
             wasDetected = false;
-            SetWarningVisible(false);
             return;
         }
 
@@ -65,28 +61,11 @@ public class EnemyVision : MonoBehaviour
         //視界に入った瞬間だけログを表示
         if (IsDetecting && !wasDetected)
         {
-            Debug.Log("PLAYER DETECTED!");
+            Debug.Log("PLAYER IN SIGHT!");
         }
-
-        //発見中だけ警告UIを表示
-        SetWarningVisible(IsDetecting);
 
         //現在の発見状態を記録
         wasDetected = IsDetecting;
-    }
-
-
-    private void SetWarningVisible(bool visible)
-    {
-        if (detectionWarning == null)
-        {
-            return;
-        }
-
-        if(detectionWarning.activeSelf != visible)
-        {
-            detectionWarning.SetActive(visible);
-        }
     }
 
 
