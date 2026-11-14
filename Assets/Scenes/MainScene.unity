@@ -155,7 +155,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 20, y: -20}
-  m_SizeDelta: {x: 300, y: 55}
+  m_SizeDelta: {x: 450, y: 55}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &40021763
 MonoBehaviour:
@@ -537,6 +537,7 @@ GameObject:
   - component: {fileID: 385210736}
   - component: {fileID: 385210735}
   - component: {fileID: 385210739}
+  - component: {fileID: 385210740}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -663,6 +664,23 @@ MonoBehaviour:
   standingObstacleMask:
     serializedVersion: 2
     m_Bits: 8
+--- !u!114 &385210740
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 385210734}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24bfc2ede0fce8d4381ec2aed1495981, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerFootsteps
+  stepInterval: 0.5
+  minimumMoveSpeed: 0.2
+  walkHearingRadius: 6
+  crouchHearingRadius: 2
+  showDebugLog: 1
 --- !u!1 &686632688
 GameObject:
   m_ObjectHideFlags: 0
@@ -3025,6 +3043,7 @@ MonoBehaviour:
   - {fileID: 317082927}
   playerMovement: {fileID: 385210739}
   enemyVision: {fileID: 1975565549}
+  enemyHearing: {fileID: 1975565562}
   patrolSpeed: 3
   chaseSpeed: 5
   chaseUpdateInterval: 0.3
@@ -3033,11 +3052,28 @@ MonoBehaviour:
   searchLookAngle: 60
   searchLookSpeed: 2
   searchTurnSpeed: 180
+  investigateWaitTime: 2
+  investigateRetargetCooldown: 0.75
+  investigateRetargetMinDistance: 1.5
 --- !u!4 &1975565556 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4971159434980829963, guid: 69f9a5a65b565da4c9edda613743f463, type: 3}
   m_PrefabInstance: {fileID: 6375040520928831249}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1975565562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1975565539}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6d65eaa62d53f44387c3c8215ea8200, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHearing
+  playerFootsteps: {fileID: 385210740}
+  showDebugLog: 1
 --- !u!1 &2008250355
 GameObject:
   m_ObjectHideFlags: 0
@@ -3312,6 +3348,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4810674665810091426, guid: 69f9a5a65b565da4c9edda613743f463, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1975565550}
+    - targetCorrespondingSourceObject: {fileID: 4810674665810091426, guid: 69f9a5a65b565da4c9edda613743f463, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1975565562}
   m_SourcePrefab: {fileID: 100100000, guid: 69f9a5a65b565da4c9edda613743f463, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

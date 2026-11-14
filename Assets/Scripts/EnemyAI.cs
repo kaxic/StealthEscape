@@ -7,9 +7,10 @@ public class EnemyAI : MonoBehaviour
     //敵が行ってる行動
     private enum EnemyState
     {
-        Patrol, //巡回
-        Chase , //追跡
-        Search, //捜索
+        Patrol,      //通常巡回
+        Chase ,      //追跡
+        Search,      //捜索
+        Investigate, //足音の調査
     }
 
 
@@ -17,6 +18,7 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private Transform[] waypoints;
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private EnemyVision enemyVision;
+    [SerializeField] private EnemyHearing enemyHearing;
 
 
     [Header("Movement")]
@@ -34,6 +36,12 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private float searchLookAngle = 60f;
     [SerializeField] private float searchLookSpeed = 2f;
     [SerializeField] private float searchTurnSpeed = 180f;
+
+
+    [Header("Investigate")]
+    [SerializeField,Min(0f)] private float investigateWaitTime = 2f;
+    [SerializeField, Min(0.1f)] private float investigateRetargetCooldown = 0.75f;
+    [SerializeField, Min(0f)] private float investigateRetargetMinDistance = 1.5f;
 
 
     private NavMeshAgent agent;
@@ -64,6 +72,26 @@ public class EnemyAI : MonoBehaviour
     //見回しを開始してから経過した時間
     private float searchLookElapsed = 0f;
 
+
+    //最後に聞いた足音の位置
+    private Vector3 lastHeardPosition;
+
+    //調査地点に到着したか
+    private bool investigateArrived = false;
+
+    //調査地点での残り待機時間
+    private float investigateTimer = 0f;
+
+    //調査地点に到着した時の向き
+    private Quaternion investigateStartRotation;
+
+    //見回し開始からの経過時間
+    private float investigateLookElapsed = 0f;
+
+    //次に調査先を更新できる時刻
+    private float nextInvestigateRetargetTime = 0f;
+
+
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
@@ -76,6 +104,30 @@ public class EnemyAI : MonoBehaviour
         if (playerMovement != null) 
         {
             //playerController = playerMovement.GetComponent<CharacterController>();
+        }
+    }
+
+    private void OnEnable()
+    {
+        //聴覚コンポーネントを取得
+        if (enemyHearing == null)
+        {
+            enemyHearing = GetComponent<EnemyHearing>();
+        }
+
+        //足音検知イベントを購読
+        if (enemyHearing != null)
+        {
+            enemyHearing.FootstepHeard += OnFootstepHeard;
+        }
+    }
+
+    private void OnDisable()
+    {
+        //イベントの購読を解除
+        if (enemyHearing != null)
+        {
+            enemyHearing.FootstepHeard -= OnFootstepHeard;
         }
     }
 
@@ -173,6 +225,13 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
+        //足音調査中の処理
+        if (currentState == EnemyState.Investigate)
+        {
+            UpdateInvestigate();
+            return;
+        }
+
         //それ以外は巡回
         UpdatePatrol();
     }
@@ -185,6 +244,43 @@ public class EnemyAI : MonoBehaviour
         position.y = playerController.bounds.min.y;
 
         return position;
+    }
+
+
+    private void EnterPatrol()
+    {
+        currentState = EnemyState.Patrol;
+
+        agent.speed = patrolSpeed;
+        agent.updateRotation = true;
+        agent.isStopped = false;
+
+        Debug.Log("PATROL RESUME");
+
+        MoveToWayPoint();
+    }
+
+    private void UpdatePatrol()
+    {
+        if (agent.pathPending)
+        {
+            return;
+        }
+
+        if (agent.pathStatus != NavMeshPathStatus.PathComplete)
+        {
+            return;
+        }
+
+        if (agent.remainingDistance > agent.stoppingDistance)
+        {
+            return;
+        }
+
+
+        waypointIndex = (waypointIndex + 1) % waypoints.Length;
+
+        MoveToWayPoint();
     }
 
 
@@ -318,40 +414,105 @@ public class EnemyAI : MonoBehaviour
     }
 
 
-    private void EnterPatrol()
+    private void EnterInvestigate(Vector3 soundPosition)
     {
-        currentState = EnemyState.Patrol;
+        //足音の調査状態にする
+        currentState = EnemyState.Investigate;
 
+        //足音の位置を記録
+        lastHeardPosition = soundPosition;
+
+        //通常巡回と同じ速度
         agent.speed = patrolSpeed;
         agent.updateRotation = true;
         agent.isStopped = false;
 
-        Debug.Log("PATROL RESUME");
+        //状態を初期化
+        investigateArrived = false;
+        investigateTimer = investigateWaitTime;
 
-        MoveToWayPoint();
+        //安全な経路を設定
+        bool success = SafeNavMeshMove.TryMove(agent, lastHeardPosition);
+
+        //最初の調査開始から一定時間は調査先を変更しない
+        nextInvestigateRetargetTime = Time.time + investigateRetargetCooldown;
+
+        if (!success)
+        {
+            Debug.LogWarning("足音の位置へ到達できません。");
+
+            // 移動できない場合は巡回へ戻す
+            EnterPatrol();
+            return;
+        }
+
+
+        Debug.Log("INVESTIGATE START");
     }
 
-    private void UpdatePatrol()
+    private void UpdateInvestigate()
     {
-        if (agent.pathPending)
+        //移動中の場合
+        if (!investigateArrived)
         {
-            return;
+            if (agent.pathPending)
+            {
+                return;
+            }
+
+            if (agent.pathStatus != NavMeshPathStatus.PathComplete)
+            {
+                EnterPatrol();
+                return;
+            }
+
+            if (agent.remainingDistance > agent.stoppingDistance)
+            {
+                return;
+            }
+
+
+            //目的地に到着
+            investigateArrived = true;
+
+            //移動を停止
+            StopMovement();
+
+            //自動回転を停止
+            agent.updateRotation = false;
+
+            //到着した瞬間の向きを保存
+            investigateStartRotation = transform.rotation;
+
+            //見回しの経過時間をリセット
+            investigateLookElapsed = 0f;
+
+            Debug.Log("INVESTIGATE WAIT");
         }
 
-        if(agent.pathStatus != NavMeshPathStatus.PathComplete)
+        //その場で左右を見渡す
+        investigateLookElapsed += Time.deltaTime;
+
+        //左右に往復する角度を計算
+        float lookAngle = Mathf.Sin(investigateLookElapsed * searchLookSpeed) * searchLookAngle;
+
+        //到着した瞬間の向きを基準に左右に回転
+        Quaternion targetRotation = investigateStartRotation * Quaternion.Euler(0f, lookAngle, 0f);
+
+        //目標の向きへ回転
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, searchTurnSpeed * Time.deltaTime);
+
+
+        //残り時間を減らす
+        investigateTimer -= Time.deltaTime;
+
+
+        //終了後に巡回に戻る
+        if (investigateTimer <= 0f)
         {
-            return;
+            Debug.Log("INVESTIGATE END");
+            EnterPatrol();
         }
-
-        if (agent.remainingDistance > agent.stoppingDistance)
-        {
-            return;
-        }
-
-
-        waypointIndex = (waypointIndex + 1) % waypoints.Length;
-
-        MoveToWayPoint();
     }
 
 
@@ -385,5 +546,93 @@ public class EnemyAI : MonoBehaviour
     {
         agent.isStopped = true;
         agent.velocity = Vector3.zero;
+    }
+
+    private void OnFootstepHeard(Vector3 soundPosition)
+    {
+        if (playerMovement == null || !playerMovement.enabled)
+        {
+            return;
+        }
+
+        if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh)
+        {
+            return;
+        }
+
+
+        //視覚でプレイヤーを発見している時は視覚を優先
+        if (enemyVision != null && enemyVision.IsDetecting)
+        {
+            return;
+        }
+
+        //通常巡回中のみ足音を拾う
+        if (currentState == EnemyState.Patrol)
+        {
+            //足音がした場所を調査
+            EnterInvestigate(soundPosition);
+            return;
+        }
+
+        //調査中なら足音の位置の更新を試みる
+        if (currentState == EnemyState.Investigate)
+        {
+            TryUpdateInvestigateTarget(soundPosition);
+            return;
+        }
+    }
+
+    private void TryUpdateInvestigateTarget(Vector3 soundPosition)
+    {
+        //更新間隔を確認
+        if (Time.time < nextInvestigateRetargetTime)
+        {
+            return;
+        }
+
+
+        //前回の調査先からの距離を調べる
+        Vector3 difference = soundPosition - lastHeardPosition;
+        difference.y = 0f;
+
+        float minDistanceSqr = investigateRetargetMinDistance * investigateRetargetMinDistance;
+
+        //足音が近ければ更新しない
+        if(difference.sqrMagnitude < minDistanceSqr)
+        {
+            return;
+        }
+
+
+        //次に更新できる時刻
+        nextInvestigateRetargetTime = Time.time + investigateRetargetCooldown;
+
+        //移動を再開
+        agent.isStopped = false;
+        agent.updateRotation = true;
+
+
+        //新しい経路を設定
+        bool success = SafeNavMeshMove.TryMove(agent, soundPosition);
+
+        if (!success)
+        {
+            Debug.LogWarning("新しい足音の位置に到達できません。");
+
+            // 安全のため、古い経路を使わず巡回へ戻る
+            EnterPatrol();
+            return;
+        }
+
+
+        //調査先を更新
+        lastHeardPosition = soundPosition;
+
+        investigateArrived = false;
+        investigateTimer = investigateWaitTime;
+        investigateLookElapsed = 0f;
+
+        Debug.Log("INVESTIGATE TARGET UPDATED: " + soundPosition);
     }
 }
